@@ -1,10 +1,14 @@
-CC = g++
-CFLAGS = -std=c++11 -Wall
+# Makefile for resume project
 
-all: server
+.PHONY: all run clean
 
-server: server.cpp
-	$(CC) $(CFLAGS) server.cpp -o server
+all: run
+
+run:
+	@echo "Starting server..."
+	@g++ -std=c++17 server.cpp -o server -lpthread
+	@./server
 
 clean:
-	rm -f server
+	@rm -f server
+	@echo "Cleanup complete"

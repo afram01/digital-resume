@@ -18,15 +18,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // تلاش برای دریافت از سرور محلی، اگر شکست خورد از فایل JSON مستقیم استفاده کن
-    fetch(`http://localhost:${DEFAULT_PORT}/resume.json`)
+    fetch(`http://localhost:${DEFAULT_PORT}/resume.json?version=${new Date().getTime()}`)
         .then(response => {
             if (!response.ok) throw new Error('Server response not OK');
+            showConnectionStatus(true);
             return response.json();
         })
-        .catch(() => fetch('resume.json')) // اگر سرور پاسخ نداد، مستقیماً فایل را بخوان
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to fetch resume.json');
-            return response.json();
+        .catch(() => {
+            showConnectionStatus(false);
+            return fetch(`resume.json?version=${new Date().getTime()}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to fetch resume.json');
+                    return response.json();
+                });
         })
         .then(data => {
             displayResume(data);
@@ -255,4 +259,33 @@ function animateSkills() {
             bar.style.width = targetWidth;
         }, 100);
     });
+}
+
+function showConnectionStatus(connected) {
+    const status = document.createElement('div');
+    status.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+    status.textContent = connected ? 'Connected to server' : 'Using local data';
+    document.body.insertBefore(status, document.body.firstChild.nextSibling);
+    
+    // استایل‌های داینامیک
+    const style = document.createElement('style');
+    style.textContent = `
+        .connection-status {
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin: 10px;
+            text-align: center;
+            font-weight: bold;
+            animation: fadeIn 0.5s ease;
+        }
+        .connected {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .disconnected {
+            background-color: #e74c3c;
+            color: white;
+        }
+    `;
+    document.head.appendChild(style);
 }

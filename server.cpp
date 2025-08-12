@@ -1,10 +1,14 @@
 #include <iostream>
 #include <string>
 #include <fstream>
-#include "httplib.h" 
+#include <filesystem>
+#include <thread>
+#include <chrono>
+#include "httplib.h"
 
-// پورت پیش‌فرض
 #define DEFAULT_PORT 8080
+
+std::string jsonContent;
 
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
@@ -16,39 +20,53 @@ std::string readFile(const std::string& filename) {
                       std::istreambuf_iterator<char>());
 }
 
+void watchFileChanges(httplib::Server& server, const std::string& filename) {
+    auto last_write_time = std::filesystem::last_write_time(filename);
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        auto current_write_time = std::filesystem::last_write_time(filename);
+        if (current_write_time != last_write_time) {
+            last_write_time = current_write_time;
+            jsonContent = readFile(filename);
+            std::cout << "\n[INFO] resume.json has been updated. Changes will be reflected on next request." << std::endl;
+        }
+    }
+}
+
 int main() {
-    // خواندن فایل JSON
-    std::string jsonContent = readFile("resume.json");
+    jsonContent = readFile("resume.json");
     if (jsonContent.empty()) {
         std::cerr << "Error: Could not read JSON file" << std::endl;
         return 1;
     }
 
-    // ایجاد سرور
     httplib::Server server;
 
-    // تنظیم CORS headers
     server.set_default_headers({
         {"Access-Control-Allow-Origin", "*"},
         {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
         {"Access-Control-Allow-Headers", "Content-Type"}
     });
 
-    // هندلر برای درخواست GET
-    server.Get("/", [&jsonContent](const httplib::Request&, httplib::Response& res) {
+    server.Get("/", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(jsonContent, "application/json");
     });
 
-    // هندلر برای فایل‌های استاتیک
     server.set_base_dir(".");
 
     int port = DEFAULT_PORT;
     bool server_started = false;
     
-    // تلاش برای راه‌اندازی سرور با پورت پیش‌فرض یا پورت‌های بعدی
+    std::thread watcher(watchFileChanges, std::ref(server), "resume.json");
+    watcher.detach();
+
     while (!server_started && port < DEFAULT_PORT + 100) {
         try {
-            std::cout << "Attempting to start server on port " << port << std::endl;
+            std::cout << "Starting server on port " << port << "..." << std::endl;
+            std::cout << "Server is running and watching for changes in resume.json" << std::endl;
+            std::cout << "Access endpoints:" << std::endl;
+            std::cout << "  - Resume JSON: http://localhost:" << port << "/resume.json" << std::endl;
+            std::cout << "  - Webpage: http://localhost:" << port << "/index.html" << std::endl;
             server.listen("0.0.0.0", port);
             server_started = true;
         } catch (const std::exception& e) {
@@ -63,6 +81,5 @@ int main() {
         return 1;
     }
 
-    std::cout << "Server successfully started on port " << port << std::endl;
     return 0;
 }
